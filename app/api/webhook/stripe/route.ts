@@ -66,7 +66,7 @@ export async function POST(req: Request) {
                                 messages: [
                                     {
                                         type: 'text',
-                                        text: `ご予約・お支払いが完了しました！\n(Debug: ProjectID=${db.app.options.projectId}, ID=${bookingId})`,
+                                        text: 'ご予約・お支払いが完了しました！\n当日はお気をつけてお越しください。',
                                     },
                                 ],
                             }),
