@@ -74,18 +74,6 @@ export default function Home() {
       return;
     }
 
-    // Debug: Check server connection first
-    if (confirm('デバッグ: サーバー接続テストを実行しますか？')) {
-      try {
-        const serverStatus = await checkServerConfig();
-        alert(`サーバー接続成功:\nStripeキー: ${serverStatus.hasStripe ? 'あり' : 'なし'}\nBase URL: ${serverStatus.baseUrl}\n${serverStatus.message}`);
-        if (!serverStatus.hasStripe) return;
-      } catch (e) {
-        alert('サーバー接続失敗: ' + String(e));
-        return;
-      }
-    }
-
     setIsLoading(true);
     setError('');
 

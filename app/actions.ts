@@ -67,11 +67,23 @@ export async function createBookingAndPayment(
         }
 
         // Determine Base URL safe
-        let baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim();
+        // Prioritize explicit env var, fallback to Vercel URL, then localhost
+        // Debug Log for Vercel
+        console.log('Env Check - NEXT_PUBLIC_BASE_URL:', process.env.NEXT_PUBLIC_BASE_URL);
+        console.log('Env Check - VERCEL_URL:', process.env.VERCEL_URL);
+        console.log('Env Check - VERCEL_PROJECT_PRODUCTION_URL:', process.env.VERCEL_PROJECT_PRODUCTION_URL);
+
+        let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+        if (!baseUrl && process.env.VERCEL_URL) {
+            baseUrl = `https://${process.env.VERCEL_URL}`;
+        }
+        baseUrl = baseUrl?.trim();
+
         if (!baseUrl || !baseUrl.startsWith('http')) {
-            console.warn('Invalid or missing NEXT_PUBLIC_BASE_URL, falling back to localhost:3000');
+            console.warn('Invalid or missing Base URL, falling back to localhost:3000');
             baseUrl = 'http://localhost:3000';
         }
+
         // Remove trailing slash if present
         if (baseUrl.endsWith('/')) {
             baseUrl = baseUrl.slice(0, -1);
@@ -99,9 +111,8 @@ export async function createBookingAndPayment(
                 },
             ],
             mode: 'payment',
-            // Hardcoded for debugging to ensure valid URL
-            success_url: `http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingId}`,
-            cancel_url: `http://localhost:3000?canceled=true`,
+            success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingId}`,
+            cancel_url: `${baseUrl}?canceled=true`,
             metadata: {
                 bookingId: bookingId,
                 userId: bookingData.userId,
