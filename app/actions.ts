@@ -1,5 +1,6 @@
 'use server';
 
+import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
@@ -24,6 +25,29 @@ export async function createBookingAndPayment(
     bookingData: Omit<Booking, 'id' | 'status' | 'createdAt'>
 ): Promise<{ url: string | null; error?: string }> {
     console.log('--- createBookingAndPayment started ---');
+
+    // Dynamic Base URL resolution via Headers (Next.js 15+ compatible)
+    let baseUrl = 'http://localhost:3000'; // Default fallback
+    try {
+        const headerList = await headers();
+        const origin = headerList.get('origin');
+        const host = headerList.get('host');
+        const protocol = headerList.get('x-forwarded-proto') || 'http';
+
+        if (origin) {
+            baseUrl = origin;
+        } else if (host) {
+            baseUrl = `${protocol}://${host}`;
+        }
+        console.log(`Resolved Dynamic Base URL: "${baseUrl}"`);
+    } catch (e) {
+        console.warn('Failed to resolve headers, using fallback:', e);
+    }
+
+    // Validate BaseUrl sanity
+    if (!baseUrl.startsWith('http')) {
+        baseUrl = `http://${baseUrl}`;
+    }
 
     const apiKey = process.env.STRIPE_SECRET_KEY;
     console.log('Has Stripe Key:', !!apiKey);
@@ -65,31 +89,6 @@ export async function createBookingAndPayment(
             // Fallback to mock ID to allow payment to proceed even if DB fails
             bookingId = 'backup_id_' + Date.now();
         }
-
-        // Determine Base URL safe
-        // Prioritize explicit env var, fallback to Vercel URL, then localhost
-        // Debug Log for Vercel
-        console.log('Env Check - NEXT_PUBLIC_BASE_URL:', process.env.NEXT_PUBLIC_BASE_URL);
-        console.log('Env Check - VERCEL_URL:', process.env.VERCEL_URL);
-        console.log('Env Check - VERCEL_PROJECT_PRODUCTION_URL:', process.env.VERCEL_PROJECT_PRODUCTION_URL);
-
-        let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-        if (!baseUrl && process.env.VERCEL_URL) {
-            baseUrl = `https://${process.env.VERCEL_URL}`;
-        }
-        baseUrl = baseUrl?.trim();
-
-        if (!baseUrl || !baseUrl.startsWith('http')) {
-            console.warn('Invalid or missing Base URL, falling back to localhost:3000');
-            baseUrl = 'http://localhost:3000';
-        }
-
-        // Remove trailing slash if present
-        if (baseUrl.endsWith('/')) {
-            baseUrl = baseUrl.slice(0, -1);
-        }
-
-        console.log(`Using Base URL: "${baseUrl}"`);
 
         // 2. Create Stripe Checkout Session
         console.log('Creating Stripe Session...');
