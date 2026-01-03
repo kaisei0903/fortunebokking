@@ -3,7 +3,7 @@
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { Booking } from '@/types';
 
 // Debug action
@@ -62,34 +62,34 @@ export async function createBookingAndPayment(
         apiVersion: '2025-12-15.clover',
     });
 
+    // 1. Prepare Firestore Reference (Generate ID upfront)
+    const bookingRef = doc(collection(db, 'bookings'));
+    const bookingId = bookingRef.id;
+    console.log('Generated Booking ID:', bookingId);
+
+    // Timeout wrapper for Firestore operation
+    const saveToFirestore = async () => {
+        await setDoc(bookingRef, {
+            ...bookingData,
+            status: 'pending',
+            createdAt: Timestamp.now(),
+        });
+        return bookingId;
+    };
+
+    const timeout = new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error('Firestore operation timed out')), 5000)
+    );
+
     try {
-        // 1. Save to Firestore with 'pending' status
-        console.log('Saving to Firestore...');
+        await Promise.race([saveToFirestore(), timeout]);
+        console.log('Saved to Firestore successfully.');
+    } catch (dbError) {
+        console.error('Firestore Error (Non-fatal, proceeding to payment):', dbError);
+        // We proceed with the SAME bookingId, so webhook can still recover the record
+    }
 
-        // Timeout wrapper for Firestore operation
-        const saveToFirestore = async () => {
-            const docRef = await addDoc(collection(db, 'bookings'), {
-                ...bookingData,
-                status: 'pending',
-                createdAt: Timestamp.now(),
-            });
-            return docRef.id;
-        };
-
-        const timeout = new Promise<string>((_, reject) =>
-            setTimeout(() => reject(new Error('Firestore operation timed out')), 5000)
-        );
-
-        let bookingId = 'unknown_id';
-        try {
-            bookingId = await Promise.race([saveToFirestore(), timeout]);
-            console.log('Saved to Firestore ID:', bookingId);
-        } catch (dbError) {
-            console.error('Firestore Error (Non-fatal for payment):', dbError);
-            // Fallback to mock ID to allow payment to proceed even if DB fails
-            bookingId = 'backup_id_' + Date.now();
-        }
-
+    try {
         // 2. Create Stripe Checkout Session
         console.log('Creating Stripe Session...');
         const session = await stripe.checkout.sessions.create({

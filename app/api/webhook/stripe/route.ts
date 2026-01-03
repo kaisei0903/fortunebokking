@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, Timestamp } from 'firebase/firestore';
 
 // Initialize Stripe directly to ensure we have the node functionality
 // (Referencing the same key as actions.ts)
@@ -40,14 +40,14 @@ export async function POST(req: Request) {
             if (bookingId) {
                 console.log(`Payment successful for booking: ${bookingId}`);
 
-                // Update Firestore
+                // Update (or Create) Firestore Document
                 const bookingRef = doc(db, 'bookings', bookingId);
-                await updateDoc(bookingRef, {
+                await setDoc(bookingRef, {
                     status: 'paid',
                     paidAt: Timestamp.now(),
                     stripeSessionId: session.id,
-                });
-                console.log('Firestore updated to paid status.');
+                }, { merge: true });
+                console.log('Firestore updated/created to paid status.');
 
                 // Send LINE Notification
                 const userId = session.metadata?.userId;
