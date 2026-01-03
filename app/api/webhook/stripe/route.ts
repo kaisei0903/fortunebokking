@@ -48,6 +48,41 @@ export async function POST(req: Request) {
                     stripeSessionId: session.id,
                 });
                 console.log('Firestore updated to paid status.');
+
+                // Send LINE Notification
+                const userId = session.metadata?.userId;
+                const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+
+                if (userId && channelAccessToken) {
+                    try {
+                        const messageResponse = await fetch('https://api.line.me/v2/bot/message/push', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${channelAccessToken}`,
+                            },
+                            body: JSON.stringify({
+                                to: userId,
+                                messages: [
+                                    {
+                                        type: 'text',
+                                        text: 'ご予約・お支払いが完了しました！\n当日はお気をつけてお越しください。',
+                                    },
+                                ],
+                            }),
+                        });
+
+                        if (!messageResponse.ok) {
+                            console.error('LINE API Error:', await messageResponse.text());
+                        } else {
+                            console.log('LINE notification sent.');
+                        }
+                    } catch (lineError) {
+                        console.error('Failed to send LINE message:', lineError);
+                    }
+                } else {
+                    console.log('Skipping LINE notification: Missing userId or LINE_CHANNEL_ACCESS_TOKEN');
+                }
             } else {
                 console.warn('No bookingId found in session metadata');
             }
