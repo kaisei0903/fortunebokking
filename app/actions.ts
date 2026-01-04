@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
 import { collection, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { Booking } from '@/types';
+import { getProviderConfig } from '@/utils/provider';
 
 // Debug action
 export async function checkServerConfig() {
@@ -22,9 +23,16 @@ export async function checkServerConfig() {
 }
 
 export async function createBookingAndPayment(
-    bookingData: Omit<Booking, 'id' | 'status' | 'createdAt'>
+    bookingData: Omit<Booking, 'id' | 'status' | 'createdAt'> & { providerId: string }
 ): Promise<{ url: string | null; error?: string }> {
     console.log('--- createBookingAndPayment started ---');
+    console.log(`Provider ID: ${bookingData.providerId}`);
+
+    // fetch Provider Config
+    const config = await getProviderConfig(bookingData.providerId);
+    if (!config) {
+        return { url: null, error: '占い師の設定が見つかりません。IDを確認してください。' };
+    }
 
     // Dynamic Base URL resolution via Headers (Next.js 15+ compatible)
     let baseUrl = 'http://localhost:3000'; // Default fallback
@@ -53,8 +61,8 @@ export async function createBookingAndPayment(
     console.log('Has Stripe Key:', !!apiKey);
 
     if (!apiKey) {
-        console.error('Stripe Secret Key is missing in .env.local');
-        return { url: null, error: 'Server Configuration Error: Stripe Key missing' };
+        console.error('Stripe Secret Key is missing');
+        return { url: null, error: 'Server configuration error' };
     }
 
     // Initialize Stripe server-side (lazy init)
@@ -115,6 +123,13 @@ export async function createBookingAndPayment(
             metadata: {
                 bookingId: bookingId,
                 userId: bookingData.userId,
+                providerId: bookingData.providerId, // Save providerId for Webhook
+            },
+            payment_intent_data: {
+                application_fee_amount: Math.floor(bookingData.price * 0.1), // 10% Platform Fee
+                transfer_data: {
+                    destination: config.stripeAccountId, // Dynamic destination
+                },
             },
         });
 
@@ -122,6 +137,6 @@ export async function createBookingAndPayment(
         return { url: session.url };
     } catch (error: any) {
         console.error('Error creating booking:', error);
-        return { url: null, error: error.message };
+        return { url: null, error: `Failed to create booking session: ${error.message}` };
     }
 }

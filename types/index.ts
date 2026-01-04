@@ -1,5 +1,6 @@
 export interface Booking {
     id?: string;
+    providerId: string; // Tenant ID
     userId: string;
     userName: string;
     menuId: 'tarot' | 'palm' | 'full';

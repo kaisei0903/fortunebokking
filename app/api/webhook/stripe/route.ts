@@ -49,39 +49,50 @@ export async function POST(req: Request) {
                 }, { merge: true });
                 console.log('Firestore updated/created to paid status.');
 
-                // Send LINE Notification
+                // Send LINE Notification (Dynamic Provider)
                 const userId = session.metadata?.userId;
-                const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+                const providerId = session.metadata?.providerId;
 
-                if (userId && channelAccessToken) {
+                if (userId && providerId) {
                     try {
-                        const messageResponse = await fetch('https://api.line.me/v2/bot/message/push', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${channelAccessToken}`,
-                            },
-                            body: JSON.stringify({
-                                to: userId,
-                                messages: [
-                                    {
-                                        type: 'text',
-                                        text: 'ご予約・お支払いが完了しました！\n当日はお気をつけてお越しください。',
-                                    },
-                                ],
-                            }),
-                        });
+                        // Fetch Provider Config for LINE Token
+                        const { getProviderConfig } = await import('@/utils/provider'); // Dynamic import to avoid circular dep if any
+                        const config = await getProviderConfig(providerId);
 
-                        if (!messageResponse.ok) {
-                            console.error('LINE API Error:', await messageResponse.text());
+                        const channelAccessToken = config?.lineAccessToken;
+
+                        if (channelAccessToken) {
+                            const messageResponse = await fetch('https://api.line.me/v2/bot/message/push', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${channelAccessToken}`,
+                                },
+                                body: JSON.stringify({
+                                    to: userId,
+                                    messages: [
+                                        {
+                                            type: 'text',
+                                            text: 'ご予約・お支払いが完了しました！\n当日はお気をつけてお越しください。',
+                                        },
+                                    ],
+                                }),
+                            });
+
+                            if (!messageResponse.ok) {
+                                console.error('LINE API Error:', await messageResponse.text());
+                            } else {
+                                console.log(`LINE notification sent to user ${userId} for provider ${providerId}.`);
+                            }
                         } else {
-                            console.log('LINE notification sent.');
+                            console.error(`LINE Access Token missing for provider ${providerId}`);
                         }
+
                     } catch (lineError) {
                         console.error('Failed to send LINE message:', lineError);
                     }
                 } else {
-                    console.log('Skipping LINE notification: Missing userId or LINE_CHANNEL_ACCESS_TOKEN');
+                    console.log('Skipping LINE notification: Missing userId or providerId');
                 }
             } else {
                 console.warn('No bookingId found in session metadata');
