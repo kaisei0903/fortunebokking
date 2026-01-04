@@ -135,8 +135,9 @@ export async function createBookingAndPayment(
 
         console.log('Stripe Session Created:', session.url);
         return { url: session.url };
-    } catch (error: any) {
+    } catch (error) {
         console.error('Error creating booking:', error);
-        return { url: null, error: `Failed to create booking session: ${error.message}` };
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return { url: null, error: `Failed to create booking session: ${errorMessage}` };
     }
 }

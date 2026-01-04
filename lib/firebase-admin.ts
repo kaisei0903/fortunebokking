@@ -16,16 +16,23 @@ export function getAdminApp() {
 
     // Check if credentials are properly set
     if (!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
-        // In development without keys, this might be called but will fail on usage if not handled.
-        // However, for this requirement, we assume keys are/will be set.
         console.warn('Firebase Admin credentials are missing. Check environment variables.');
+        // Return existing app or null to avoid crash during build
+        return apps.length > 0 ? apps[0] : null;
     }
 
-    return initializeApp({
-        credential: cert(serviceAccount),
-    });
+    try {
+        return initializeApp({
+            credential: cert(serviceAccount),
+        });
+    } catch (e) {
+        console.error('Firebase Admin Init Error:', e);
+        return null;
+    }
 }
 
 const app = getAdminApp();
-export const adminDb = getFirestore(app);
-export const adminAuth = getAuth(app);
+// Export services with null check/fallback if needed (though usually we want them to fail if no db)
+// For build time safety, we cast or handle carefully.
+export const adminDb = app ? getFirestore(app) : {} as FirebaseFirestore.Firestore;
+export const adminAuth = app ? getAuth(app) : {} as import('firebase-admin/auth').Auth;
